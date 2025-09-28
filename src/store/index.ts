@@ -41,6 +41,7 @@ interface AppStore {
   
   // Lokální akce (okamžité, bez API)
   updateEmployeeStateLocal: (employeeID: string, updates: Partial<LocalEmployeeState>) => Promise<void>;
+  addEmployeeStateLocal: (employee: LocalEmployeeState) => Promise<void>;
   
   // =============================================================================
   // 📱 UI STATE MANAGEMENT
@@ -257,6 +258,25 @@ export const useAppStore = create<AppStore>()(
       await storageService.saveEmployeeState(updatedState);
       
       console.log(`💾 Stav zaměstnance aktualizován lokálně: ${updatedState.fullName} (${updatedState.isAtWork ? 'v práci' : 'volný'})`);
+    },
+    
+    // Přidat nového zaměstnance lokálně
+    addEmployeeStateLocal: async (employee: LocalEmployeeState) => {
+      const existingState = get().localEmployees.get(employee.employeeID);
+      if (existingState) {
+        console.warn('⚠️ Zaměstnanec už existuje, použijte updateEmployeeStateLocal:', employee.employeeID);
+        return;
+      }
+      
+      // Přidej do Map v paměti
+      const newMap = new Map(get().localEmployees);
+      newMap.set(employee.employeeID, employee);
+      set({ localEmployees: newMap });
+      
+      // Persist do IndexedDB
+      await storageService.saveEmployeeState(employee);
+      
+      console.log(`➕ Nový zaměstnanec přidán lokálně: ${employee.fullName}`);
     },
     
     // =============================================================================
@@ -519,7 +539,7 @@ export const useAppStore = create<AppStore>()(
               version: 1
             };
             
-            await get().updateEmployeeStateLocal(employee.employeeID, newState);
+            await get().addEmployeeStateLocal(newState);
             console.log(`➕ Přidán nový zaměstnanec: ${employee.fullName}`);
             hasChanges = true;
             
@@ -567,7 +587,23 @@ export const useAppStore = create<AppStore>()(
         await storageService.saveMetadata('lastFullSync', syncTime);
         set({ lastSync: syncTime });
         
-        console.log(`✅ BEZPEČNÝ sync dokončen - aktualizovány jen aktivity a metadata zaměstnanců`);
+        // 6. Debug info o změnách
+        const currentEmployeesAfterSync = get().localEmployees;
+        const totalEmployees = currentEmployeesAfterSync.size;
+        const atWork = Array.from(currentEmployeesAfterSync.values()).filter(e => e.isAtWork).length;
+        
+        console.log(`✅ BEZPEČNÝ sync dokončen:`, {
+          totalEmployees,
+          atWork,
+          hasChanges,
+          activities: (apiData.activities || []).length
+        });
+        
+        if (hasChanges) {
+          console.log('🔄 UI se aktualizuje s novými daty...');
+        } else {
+          console.log('📊 Žádné změny - UI zůstává stejné');
+        }
         
       } catch (error) {
         console.error('❌ Chyba při FULL sync:', error);

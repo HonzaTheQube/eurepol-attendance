@@ -67,13 +67,28 @@ export function WelcomeScreen() {
         
         console.log('🔄 Spouštím aktualizaci metadat ze serveru...');
         
+        // Debug info před sync
+        const beforeSync = useAppStore.getState().localEmployees;
+        console.log('📊 PŘED sync:', { 
+          totalEmployees: beforeSync.size,
+          atWork: Array.from(beforeSync.values()).filter(e => e.isAtWork).length
+        });
+        
         // Zavolej syncWithAPI pro načtení fresh dat z API
         await useAppStore.getState().syncWithAPI();
+        
+        // Debug info po sync
+        const afterSync = useAppStore.getState().localEmployees;
+        console.log('📊 PO sync:', { 
+          totalEmployees: afterSync.size,
+          atWork: Array.from(afterSync.values()).filter(e => e.isAtWork).length,
+          newEmployees: afterSync.size - beforeSync.size
+        });
         
         console.log('✅ Metadata aktualizována ze serveru - docházkové stavy zachovány');
         
         // Krátká notifikace o úspěchu
-        alert('✅ Data byla úspěšně aktualizována ze serveru!');
+        alert(`✅ Aktualizace dokončena!\n\nZaměstnanci: ${afterSync.size}\nV práci: ${Array.from(afterSync.values()).filter(e => e.isAtWork).length}`);
         
       } catch (error) {
         console.error('❌ Chyba při aktualizaci dat:', error);
