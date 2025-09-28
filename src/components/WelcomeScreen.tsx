@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Users, CreditCard, LogOut, Settings } from 'lucide-react';
+import { Clock, Users, CreditCard, LogOut, Settings, RotateCcw } from 'lucide-react';
 import { NFCListener } from './IdentificationMethods/NFCListener';
 import { ManualSelector } from './IdentificationMethods/ManualSelector';
 import { authService } from '../services/auth';
@@ -57,6 +57,32 @@ export function WelcomeScreen() {
     if (confirm('Opravdu se chcete odhlásit?')) {
       authService.logout();
       window.location.reload();
+    }
+  };
+
+  const handleResetInitializeData = async () => {
+    if (confirm('Opravdu chcete vymazat initialize data?\n\n⚠️ Vymaže se:\n• Seznam zaměstnanců\n• Seznam aktivit\n• Sync metadata\n\n✅ ZACHOVÁ SE:\n• Pracovní stavy (kdo je v práci)\n• Action queue (pending akce)')) {
+      try {
+        const { storageService } = await import('../services/storage');
+        
+        console.log('🧹 Reset initialize dat...');
+        
+        // Vymaž JEN initialize metadata
+        await storageService.saveMetadata('cachedActivities', '[]');
+        await storageService.saveMetadata('lastFullSync', null);
+        
+        // NEVYMAZÁVEJ: employee-states store (pracovní stavy)
+        // NEVYMAZÁVEJ: action-queue store (pending akce)
+        
+        console.log('✅ Initialize data vymazána, ale pracovní stavy zachovány');
+        
+        // Reload aplikace pro načtení fresh dat z API
+        window.location.reload();
+        
+      } catch (error) {
+        console.error('❌ Chyba při reset initialize dat:', error);
+        alert('Chyba při mazání dat. Zkuste to znovu.');
+      }
     }
   };
 
@@ -168,6 +194,14 @@ export function WelcomeScreen() {
               <div className="text-sm text-slate-300">
                 Session: {authService.getSessionInfo().timeLeft} zbývá
               </div>
+              
+              <button
+                onClick={handleResetInitializeData}
+                className="w-full flex items-center justify-center space-x-2 py-3 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg transition-colors"
+              >
+                <RotateCcw className="w-5 h-5" />
+                <span>Reset Initialize Data</span>
+              </button>
               
               <button
                 onClick={handleLogout}
