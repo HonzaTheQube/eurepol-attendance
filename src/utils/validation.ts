@@ -22,7 +22,10 @@ export function isValidEmployee(employee: any): employee is Employee {
     typeof employee === 'object' &&
     employee !== null &&
     isValidEmployeeID(employee.employeeID) &&
-    typeof employee.fullName === 'string'
+    typeof employee.fullName === 'string' &&
+    employee.fullName.trim().length > 0 &&
+    typeof employee.tagID === 'string' &&
+    employee.tagID.trim().length > 0
   );
 }
 

@@ -19,12 +19,13 @@ export function ManualSelector({ onClose }: ManualSelectorProps) {
         employeeID: localState.employeeID,
         fullName: localState.fullName,
         reportActivity: localState.reportActivity || false,
+        tagID: localState.tagID || 'N/A', // Pro debugging
         isAtWork: localState.isAtWork || false
       }))
       .sort((a, b) => a.fullName.localeCompare(b.fullName, 'cs')); // Abecední řazení podle českých pravidel
   }, [localEmployees]);
 
-  const handleEmployeeSelect = async (employee: { employeeID: string; fullName: string; reportActivity: boolean; isAtWork: boolean }) => {
+  const handleEmployeeSelect = async (employee: { employeeID: string; fullName: string; reportActivity: boolean; tagID: string; isAtWork: boolean }) => {
     setIsLoading(true);
     setLoadingEmployeeId(employee.employeeID);
     

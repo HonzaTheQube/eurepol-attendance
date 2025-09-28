@@ -76,13 +76,13 @@ export function NFCListener() {
           return;
         }
         
-        const { getEmployeeWithState, setCurrentScreen, setSelectedEmployee, setError } = useAppStore.getState();
+        const { getEmployeeByTagID, setCurrentScreen, setSelectedEmployee, setError } = useAppStore.getState();
         
-        console.log('⚡ LOCAL-FIRST lookup zaměstnance podle NFC chip ID:', chipId);
+        console.log('⚡ LOCAL-FIRST lookup zaměstnance podle NFC tagID:', chipId);
         
         try {
-          // LOCAL-FIRST: okamžitý lookup (0ms) místo API volání
-          const employeeWithStatus = getEmployeeWithState(chipId);
+          // LOCAL-FIRST: okamžitý lookup podle tagID (0ms) místo API volání
+          const employeeWithStatus = getEmployeeByTagID(chipId);
         
           if (employeeWithStatus) {
             console.log('✅ LOCAL-FIRST zaměstnanec nalezen okamžitě:', employeeWithStatus.fullName);
@@ -90,10 +90,10 @@ export function NFCListener() {
             setSelectedEmployee(employeeWithStatus);
             setCurrentScreen('employee-action');
           } else {
-            console.warn('⚠️ Zaměstnanec s NFC chip ID nenalezen v lokální databázi:', chipId);
+            console.warn('⚠️ Zaměstnanec s NFC tagID nenalezen v lokální databázi:', chipId);
             
             // Zobrazit chybovou zprávu uživateli
-            setError(`Zaměstnanec s ID "${chipId}" nebyl nalezen v lokální databázi.`);
+            setError(`Zaměstnanec s NFC tagID "${chipId}" nebyl nalezen v lokální databázi.`);
             setCurrentScreen('error');
             
             // Automatický návrat na welcome po 3 sekundách

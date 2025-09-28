@@ -3,7 +3,8 @@
 export interface Employee {
   employeeID: string;
   fullName: string;
-  reportActivity: boolean; // Nová property - zda má hlásit aktivity
+  reportActivity: boolean; // Zda má hlásit aktivity
+  tagID: string; // NFC tag ID pro identifikaci
 }
 
 // Attendance Types
@@ -37,6 +38,7 @@ export interface EmployeeWithState extends Employee {
   lastActionTime?: string;
   attendanceStart?: string; // ISO timestamp příchodu do práce
   attendanceID?: string; // ID aktuální docházky pro ukončení
+  version?: number; // Verze pro conflict resolution
 }
 
 // Activity Types - NOVÉ

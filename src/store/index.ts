@@ -38,6 +38,7 @@ interface AppStore {
   // Rychlý lokální lookup (bez API volání!)
   getEmployeeState: (employeeID: string) => LocalEmployeeState | null;
   getEmployeeWithState: (employeeID: string) => EmployeeWithState | null;
+  getEmployeeByTagID: (tagID: string) => EmployeeWithState | null;
   
   // Lokální akce (okamžité, bez API)
   updateEmployeeStateLocal: (employeeID: string, updates: Partial<LocalEmployeeState>) => Promise<void>;
@@ -145,6 +146,7 @@ export const useAppStore = create<AppStore>()(
               employeeID: employee.employeeID,
               fullName: employee.fullName,
               reportActivity: employee.reportActivity || false,
+              tagID: employee.tagID || employee.employeeID, // Fallback pro starší data
               department: '',
               isAtWork: false,
               version: 1
@@ -224,7 +226,8 @@ export const useAppStore = create<AppStore>()(
         return {
         employeeID: localState.employeeID,
         fullName: localState.fullName,
-        reportActivity: localState.reportActivity, // NOVÁ property
+        reportActivity: localState.reportActivity,
+        tagID: localState.tagID, // Přidáno tagID
         isAtWork: localState.isAtWork,
         lastAction: localState.lastLocalAction,
         lastActionTime: localState.lastLocalActionTime,
@@ -232,6 +235,32 @@ export const useAppStore = create<AppStore>()(
         attendanceID: localState.attendanceID,
         version: localState.version
       };
+    },
+    
+    // NFC lookup podle tagID
+    getEmployeeByTagID: (tagID: string) => {
+      const allEmployees = get().localEmployees;
+      
+      // Hledej zaměstnance podle tagID
+      for (const [employeeID, localState] of allEmployees) {
+        if (localState.tagID === tagID) {
+          return {
+            employeeID: localState.employeeID,
+            fullName: localState.fullName,
+            reportActivity: localState.reportActivity,
+            tagID: localState.tagID,
+            isAtWork: localState.isAtWork,
+            lastAction: localState.lastLocalAction,
+            lastActionTime: localState.lastLocalActionTime,
+            attendanceStart: localState.attendanceStart,
+            attendanceID: localState.attendanceID,
+            version: localState.version
+          };
+        }
+      }
+      
+      console.warn('⚠️ Zaměstnanec s tagID nenalezen:', tagID);
+      return null; // TagID nenalezeno
     },
     
     // Lokální aktualizace stavu (okamžitá, + persist do IndexedDB)
@@ -534,6 +563,7 @@ export const useAppStore = create<AppStore>()(
               employeeID: employee.employeeID,
               fullName: employee.fullName,
               reportActivity: employee.reportActivity || false,
+              tagID: employee.tagID || employee.employeeID, // Fallback pro starší data
               department: '',
               isAtWork: false, // Default pro nové
               version: 1
@@ -547,15 +577,17 @@ export const useAppStore = create<AppStore>()(
             // Existující zaměstnanec - aktualizuj JEN metadata
             const needsUpdate = 
               existingState.fullName !== employee.fullName ||
-              existingState.reportActivity !== (employee.reportActivity || false);
+              existingState.reportActivity !== (employee.reportActivity || false) ||
+              existingState.tagID !== (employee.tagID || employee.employeeID);
               
             if (needsUpdate) {
               await get().updateEmployeeStateLocal(employee.employeeID, {
                 fullName: employee.fullName,
-                reportActivity: employee.reportActivity || false
+                reportActivity: employee.reportActivity || false,
+                tagID: employee.tagID || employee.employeeID // Aktualizuj tagID
                 // NIKDY neměnit: isAtWork, attendanceStart, attendanceID!
               });
-              console.log(`🔄 Aktualizována metadata pro: ${employee.fullName}`);
+              console.log(`🔄 Aktualizována metadata pro: ${employee.fullName} (tagID: ${employee.tagID || employee.employeeID})`);
               hasChanges = true;
             }
           }

@@ -5,7 +5,8 @@ import { authService } from './auth';
 export interface LocalEmployeeState {
   employeeID: string;
   fullName: string;
-  reportActivity: boolean; // NOVÁ property - zda má hlásit aktivity
+  reportActivity: boolean; // Zda má hlásit aktivity
+  tagID: string; // NFC tag ID pro identifikaci
   department?: string;
   
   // Aktuální stav
