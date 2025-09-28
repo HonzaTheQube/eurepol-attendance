@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Users, CreditCard, LogOut, Settings, RotateCcw } from 'lucide-react';
+import { Clock, Users, CreditCard, LogOut, Settings, RefreshCw } from 'lucide-react';
 import { NFCListener } from './IdentificationMethods/NFCListener';
 import { ManualSelector } from './IdentificationMethods/ManualSelector';
 import { authService } from '../services/auth';
@@ -60,28 +60,24 @@ export function WelcomeScreen() {
     }
   };
 
-  const handleResetInitializeData = async () => {
-    if (confirm('Opravdu chcete vymazat initialize data?\n\n⚠️ Vymaže se:\n• Seznam zaměstnanců\n• Seznam aktivit\n• Sync metadata\n\n✅ ZACHOVÁ SE:\n• Pracovní stavy (kdo je v práci)\n• Action queue (pending akce)')) {
+  const handleUpdateData = async () => {
+    if (confirm('Provést aktualizaci dat ze serveru?\n\n🔄 AKTUALIZUJE:\n• Seznam zaměstnanců\n• Seznam aktivit\n• Jména a nastavení\n\n✅ ZACHOVÁ:\n• Pracovní stavy (kdo je v práci)\n• Čekající akce\n• Všechny docházkové údaje')) {
       try {
-        const { storageService } = await import('../services/storage');
+        const { useAppStore } = await import('../store');
         
-        console.log('🧹 Reset initialize dat...');
+        console.log('🔄 Spouštím aktualizaci metadat ze serveru...');
         
-        // Vymaž JEN initialize metadata
-        await storageService.saveMetadata('cachedActivities', '[]');
-        await storageService.saveMetadata('lastFullSync', null);
+        // Zavolej syncWithAPI pro načtení fresh dat z API
+        await useAppStore.getState().syncWithAPI();
         
-        // NEVYMAZÁVEJ: employee-states store (pracovní stavy)
-        // NEVYMAZÁVEJ: action-queue store (pending akce)
+        console.log('✅ Metadata aktualizována ze serveru - docházkové stavy zachovány');
         
-        console.log('✅ Initialize data vymazána, ale pracovní stavy zachovány');
-        
-        // Reload aplikace pro načtení fresh dat z API
-        window.location.reload();
+        // Krátká notifikace o úspěchu
+        alert('✅ Data byla úspěšně aktualizována ze serveru!');
         
       } catch (error) {
-        console.error('❌ Chyba při reset initialize dat:', error);
-        alert('Chyba při mazání dat. Zkuste to znovu.');
+        console.error('❌ Chyba při aktualizaci dat:', error);
+        alert('❌ Chyba při aktualizaci dat. Zkuste to znovu.');
       }
     }
   };
@@ -178,11 +174,11 @@ export function WelcomeScreen() {
       {/* Admin menu modal */}
       {showAdminMenu && (
         <div 
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50"
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={() => setShowAdminMenu(false)}
         >
           <div 
-            className="glass-card max-w-md w-full mx-4 my-auto absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 p-6"
+            className="glass-card max-w-md w-full p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center mb-4">
@@ -196,11 +192,11 @@ export function WelcomeScreen() {
               </div>
               
               <button
-                onClick={handleResetInitializeData}
-                className="w-full flex items-center justify-center space-x-2 py-3 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg transition-colors"
+                onClick={handleUpdateData}
+                className="w-full flex items-center justify-center space-x-2 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
               >
-                <RotateCcw className="w-5 h-5" />
-                <span>Reset Initialize Data</span>
+                <RefreshCw className="w-5 h-5" />
+                <span>Aktualizace</span>
               </button>
               
               <button
