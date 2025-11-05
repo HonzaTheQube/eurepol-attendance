@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Play, Square, User, ArrowLeft } from 'lucide-react';
+import { Play, Square, User, Home } from 'lucide-react';
 import { useAppStore } from '../store';
 import { appConfig } from '../services/config';
 
@@ -87,8 +87,8 @@ export function EmployeeActionScreen() {
     const employeeState = getEmployeeState(selectedEmployee.employeeID);
     
     if (employeeState?.reportActivity) {
-      console.log('📋 Zaměstnanec má reportActivity - přechod na activity-confirmation');
-      setCurrentScreen('activity-confirmation');
+      console.log('📋 Zaměstnanec má reportActivity - přechod na category-selector');
+      setCurrentScreen('category-selector');
     } else {
       console.log('🔴 Normální STOP bez reportActivity');
       stopWork(selectedEmployee.employeeID); // Bez await - async na pozadí
@@ -142,13 +142,13 @@ export function EmployeeActionScreen() {
   return (
     <div className="h-screen flex flex-col overflow-hidden px-6 py-4 relative">
 
-      {/* Zpět tlačítko */}
+      {/* Domů tlačítko */}
       <button
         onClick={handleBack}
         className="absolute top-4 left-4 p-3 text-slate-300 hover:text-slate-100 hover:bg-slate-600/30 rounded-full transition-all duration-200 backdrop-blur-sm z-20"
-        aria-label="Zpět"
+        aria-label="Domů"
       >
-        <ArrowLeft className="w-6 h-6" />
+        <Home className="w-6 h-6" />
       </button>
 
       {/* Střední sekce - zaměstnanec vycentrovaný */}

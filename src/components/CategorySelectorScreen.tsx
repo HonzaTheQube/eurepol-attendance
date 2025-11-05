@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { ArrowLeft, Grid3X3, Wheat, Heart, Truck, Package, FileText, Settings, Lightbulb } from 'lucide-react';
+import { Home, Grid3X3, Wheat, Heart, Truck, Package, FileText, Settings, Lightbulb } from 'lucide-react';
 import { useAppStore } from '../store';
 import { appConfig } from '../services/config';
 
@@ -73,7 +73,18 @@ export function CategorySelectorScreen() {
   const handleCategorySelect = (category: string) => {
     console.log('📂 Vybrána kategorie:', category);
     setSelectedCategory(category);
-    setCurrentScreen('activity-selector');
+    
+    // Zkontroluj, zda má kategorie nějaké subkategorie
+    const categoryActivities = activities.filter(a => a.activityCategory === category);
+    const hasSubCategories = categoryActivities.some(a => a.activitySubCategory && a.activitySubCategory.trim() !== '');
+    
+    if (hasSubCategories) {
+      console.log('📂 Kategorie má subkategorie - přechod na subcategory-selector');
+      setCurrentScreen('subcategory-selector');
+    } else {
+      console.log('📂 Kategorie nemá subkategorie - přechod rovnou na activity-selector');
+      setCurrentScreen('activity-selector');
+    }
   };
 
   if (!selectedEmployee) {
@@ -97,13 +108,13 @@ export function CategorySelectorScreen() {
   return (
     <div className="h-screen flex flex-col overflow-hidden px-6 py-4 relative">
       
-      {/* Zpět tlačítko */}
+      {/* Domů tlačítko */}
       <button
         onClick={handleBack}
         className="absolute top-4 left-4 p-3 text-slate-300 hover:text-slate-100 hover:bg-slate-600/30 rounded-full transition-all duration-200 backdrop-blur-sm z-20"
-        aria-label="Zpět"
+        aria-label="Domů"
       >
-        <ArrowLeft className="w-6 h-6" />
+        <Home className="w-6 h-6" />
       </button>
 
       {/* Header sekce */}

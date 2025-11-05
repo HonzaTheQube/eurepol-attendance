@@ -7,8 +7,8 @@ import { ConfirmationScreen } from './components/ConfirmationScreen';
 import { ErrorScreen } from './components/ErrorScreen';
 import { LoadingScreen } from './components/LoadingScreen';
 import { OfflineIndicator } from './components/OfflineIndicator';
-import { ActivityConfirmationScreen } from './components/ActivityConfirmationScreen';
 import { CategorySelectorScreen } from './components/CategorySelectorScreen';
+import { SubCategorySelectorScreen } from './components/SubCategorySelectorScreen';
 import { ActivitySelectorScreen } from './components/ActivitySelectorScreen';
 import { useAppSync } from './hooks/useAppSync';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
@@ -59,8 +59,8 @@ function AppContent() {
         {currentScreen === 'employee-action' && <EmployeeActionScreen />}
         {currentScreen === 'confirmation' && <ConfirmationScreen />}
         {currentScreen === 'error' && <ErrorScreen />}
-        {currentScreen === 'activity-confirmation' && <ActivityConfirmationScreen />}
         {currentScreen === 'category-selector' && <CategorySelectorScreen />}
+        {currentScreen === 'subcategory-selector' && <SubCategorySelectorScreen />}
         {currentScreen === 'activity-selector' && <ActivitySelectorScreen />}
       </main>
 

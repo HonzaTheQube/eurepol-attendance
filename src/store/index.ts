@@ -18,6 +18,7 @@ interface AppStore {
   currentScreen: Screen;
   selectedEmployee?: EmployeeWithState;
   selectedCategory?: string; // NOVÁ property pro vybranou kategorii
+  selectedSubCategory?: string; // NOVÁ property pro vybranou subkategorii
   selectedActivity?: Activity; // NOVÁ property pro vybranou aktivitu
   message?: string;
   
@@ -51,6 +52,7 @@ interface AppStore {
   setCurrentScreen: (currentScreen: Screen) => void;
   setSelectedEmployee: (selectedEmployee: EmployeeWithState | undefined) => void;
   setSelectedCategory: (category: string | undefined) => void; // NOVÁ metoda
+  setSelectedSubCategory: (subCategory: string | undefined) => void; // NOVÁ metoda
   setSelectedActivity: (activity: Activity | undefined) => void; // NOVÁ metoda
   setMessage: (message: string | undefined) => void;
   
@@ -103,6 +105,7 @@ export const useAppStore = create<AppStore>()(
     currentScreen: 'welcome' as Screen,
     selectedEmployee: undefined,
     selectedCategory: undefined, // NOVÁ property
+    selectedSubCategory: undefined, // NOVÁ property
     selectedActivity: undefined, // NOVÁ property
     message: undefined,
     
@@ -315,6 +318,7 @@ export const useAppStore = create<AppStore>()(
     setCurrentScreen: (currentScreen: Screen) => set({ currentScreen }),
     setSelectedEmployee: (selectedEmployee: EmployeeWithState | undefined) => set({ selectedEmployee }),
     setSelectedCategory: (selectedCategory: string | undefined) => set({ selectedCategory }), // NOVÁ metoda
+    setSelectedSubCategory: (selectedSubCategory: string | undefined) => set({ selectedSubCategory }), // NOVÁ metoda
     setSelectedActivity: (selectedActivity: Activity | undefined) => set({ selectedActivity }), // NOVÁ metoda
     setMessage: (message: string | undefined) => set({ message }),
     

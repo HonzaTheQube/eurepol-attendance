@@ -47,6 +47,7 @@ export interface Activity {
   activityID: string;
   activityName: string;
   activityCategory: string;
+  activitySubCategory: string; // NOVÁ property pro subkategorii
 }
 
 export interface ActivityCategory {
@@ -105,7 +106,7 @@ export interface CompletionWebhookResponse {
 
 // UI State Types
 
-export type Screen = 'welcome' | 'employee-action' | 'confirmation' | 'error' | 'activity-confirmation' | 'category-selector' | 'activity-selector';
+export type Screen = 'welcome' | 'employee-action' | 'confirmation' | 'error' | 'category-selector' | 'subcategory-selector' | 'activity-selector';
 
 export interface UIState {
   currentScreen: Screen;
@@ -113,6 +114,7 @@ export interface UIState {
   isProcessing: boolean;
   message?: string;
   selectedCategory?: string; // NOVÁ property pro vybranou kategorii aktivit
+  selectedSubCategory?: string; // NOVÁ property pro vybranou subkategorii
   selectedActivity?: Activity; // NOVÁ property pro vybranou aktivitu
 };
 

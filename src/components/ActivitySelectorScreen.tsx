@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { Home, ArrowLeft } from 'lucide-react';
 import { useAppStore } from '../store';
 import { appConfig } from '../services/config';
 import type { Activity } from '../types';
@@ -9,6 +9,7 @@ export function ActivitySelectorScreen() {
     selectedEmployee, 
     activities,
     selectedCategory,
+    selectedSubCategory,
     setCurrentScreen, 
     setSelectedEmployee,
     setSelectedActivity,
@@ -30,16 +31,30 @@ export function ActivitySelectorScreen() {
   };
 
   const handleBackToCategories = () => {
-    setCurrentScreen('category-selector');
+    // Pokud máme vybranou subkategorii, vrať se na subcategory-selector
+    if (selectedSubCategory) {
+      setCurrentScreen('subcategory-selector');
+    } else {
+      setCurrentScreen('category-selector');
+    }
   };
 
-  // Filtrování aktivit podle vybrané kategorie
+  // Filtrování aktivit podle vybrané kategorie a subkategorie
   const categoryActivities = useMemo(() => {
     if (!selectedCategory) return [];
-    return activities
-      .filter(activity => activity.activityCategory === selectedCategory)
-      .sort((a, b) => a.activityName.localeCompare(b.activityName, 'cs'));
-  }, [activities, selectedCategory]);
+    
+    let filtered = activities.filter(activity => activity.activityCategory === selectedCategory);
+    
+    // Pokud je vybraná subkategorie, filtruj podle ní
+    if (selectedSubCategory) {
+      filtered = filtered.filter(activity => activity.activitySubCategory === selectedSubCategory);
+    } else {
+      // Pokud není vybraná subkategorie, zobraz jen aktivity BEZ subkategorie
+      filtered = filtered.filter(activity => !activity.activitySubCategory || activity.activitySubCategory.trim() === '');
+    }
+    
+    return filtered.sort((a, b) => a.activityName.localeCompare(b.activityName, 'cs'));
+  }, [activities, selectedCategory, selectedSubCategory]);
 
   // Počítání optimálního rozložení gridu pro aktivity
   const getOptimalGridLayout = (itemCount: number) => {
@@ -95,22 +110,32 @@ export function ActivitySelectorScreen() {
     return null;
   }
 
+  // Kontrola aktivit v useEffect místo během renderu
+  useEffect(() => {
+    if (categoryActivities.length === 0) {
+      console.warn('⚠️ Žádné aktivity v kategorii/subkategorii:', selectedCategory, selectedSubCategory);
+      if (selectedSubCategory) {
+        setCurrentScreen('subcategory-selector');
+      } else {
+        setCurrentScreen('category-selector');
+      }
+    }
+  }, [categoryActivities.length, selectedCategory, selectedSubCategory, setCurrentScreen]);
+
   if (categoryActivities.length === 0) {
-    console.warn('⚠️ Žádné aktivity v kategorii:', selectedCategory);
-    setCurrentScreen('category-selector');
-    return null;
+    return null; // Čekáme na useEffect redirect
   }
 
   return (
     <div className="h-screen flex flex-col overflow-hidden px-6 py-4 relative">
       
-      {/* Zpět tlačítko */}
+      {/* Domů tlačítko */}
       <button
         onClick={handleBack}
         className="absolute top-4 left-4 p-3 text-slate-300 hover:text-slate-100 hover:bg-slate-600/30 rounded-full transition-all duration-200 backdrop-blur-sm z-20"
-        aria-label="Zpět"
+        aria-label="Domů"
       >
-        <ArrowLeft className="w-6 h-6" />
+        <Home className="w-6 h-6" />
       </button>
 
       {/* Header sekce */}
@@ -119,10 +144,12 @@ export function ActivitySelectorScreen() {
         <div className="mb-4">
           <button
             onClick={handleBackToCategories}
-            className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 text-blue-400 hover:text-blue-300 bg-slate-700/20 hover:bg-slate-600/30 border border-slate-600/30 rounded-lg transition-all duration-200"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span className="text-sm">Zpět na kategorie</span>
+            <span className="text-sm font-medium">
+              {selectedSubCategory ? 'Zpět na podkategorie' : 'Zpět na kategorie'}
+            </span>
           </button>
         </div>
         
@@ -131,6 +158,7 @@ export function ActivitySelectorScreen() {
         </h3>
         <p className="text-slate-300 text-lg mb-1">
           {selectedCategory.replace('_', ' ')}
+          {selectedSubCategory && ` • ${selectedSubCategory}`}
         </p>
         <p className="text-slate-400">
           {selectedEmployee.fullName}
