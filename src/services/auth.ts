@@ -74,7 +74,7 @@ class AuthService {
    * ⚡ SMART SESSION REFRESH: Prodlouží session při aktivitě
    */
   private smartRefreshSession(): void {
-    if (!this.currentSession || !this.isAuthenticated()) return;
+    if (!this.currentSession) return; // ✅ OPRAVA: Nerekurzivní kontrola
 
     const now = Date.now();
     const lastActivity = this.getLastActivity();

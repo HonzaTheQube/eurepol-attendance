@@ -83,7 +83,7 @@ export function CategorySelectorScreen() {
       setCurrentScreen('subcategory-selector');
     } else {
       console.log('📂 Kategorie nemá subkategorie - přechod rovnou na activity-selector');
-      setCurrentScreen('activity-selector');
+    setCurrentScreen('activity-selector');
     }
   };
 

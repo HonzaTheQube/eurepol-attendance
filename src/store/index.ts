@@ -29,6 +29,9 @@ interface AppStore {
   lastSync?: string;
   isInitialized: boolean; // Zda je LOCAL databáze načtená
   
+  // 🔒 RACE CONDITION PROTECTION
+  pendingActions: Set<string>; // Tracking probíhajících akcí (formát: "employeeID-action")
+  
   // =============================================================================
   // 🚀 LOCAL-FIRST CORE METHODS
   // =============================================================================
@@ -82,7 +85,8 @@ interface AppStore {
 interface ActionQueueStore {
   queue: QueuedAction[];
   isLoaded: boolean;
-  isProcessing: boolean; // NOVÁ property - processing lock
+  isProcessing: boolean; // Processing lock
+  processingStartTime?: number; // Timestamp kdy začal processing (pro timeout detection)
   
   addAction: (action: Omit<QueuedAction, 'id' | 'attempts'>) => Promise<void>;
   removeAction: (actionId: string) => Promise<void>;
@@ -115,6 +119,9 @@ export const useAppStore = create<AppStore>()(
     error: undefined,
     lastSync: undefined,
     isInitialized: false,
+    
+    // 🔒 RACE CONDITION PROTECTION
+    pendingActions: new Set<string>(),
     
     // =============================================================================
     // 🚀 LOCAL-FIRST CORE METHODS
@@ -355,7 +362,8 @@ export const useAppStore = create<AppStore>()(
         useActionQueueStore.setState({ 
           queue: [], 
           isLoaded: false, 
-          isProcessing: false 
+          isProcessing: false,
+          processingStartTime: undefined
         });
         
         console.log('✅ IndexedDB vyčištěna - aplikace je připravena pro API-FIRST test');
@@ -391,10 +399,14 @@ export const useAppStore = create<AppStore>()(
         return;
       }
       
-      // Nastavit processing lock
-      useActionQueueStore.setState({ isProcessing: true });
+      // Nastavit processing lock s timestampem
+      const now = Date.now();
+      useActionQueueStore.setState({ 
+        isProcessing: true,
+        processingStartTime: now
+      });
       
-      console.log(`🔄 Zpracovávám ${queue.length} akcí ve frontě...`);
+      console.log(`🔄 Zpracovávám ${queue.length} akcí ve frontě... (start time: ${new Date(now).toLocaleTimeString('cs-CZ')})`);
       
       // NOVÉ: Skupina akcí podle zaměstnanců pro správné dependency tracking
       const employeeActionsMap = new Map<string, QueuedAction[]>();
@@ -418,11 +430,17 @@ export const useAppStore = create<AppStore>()(
         let currentAttendanceID: string | undefined = undefined;
         
         for (const action of actions) {
-          // Skipnout akce, které překročily max attempts
+          // ✅ NOVÁ LOGIKA: Skipnout akce, které překročily max attempts (NEMAZAT!)
           if (action.attempts >= action.maxAttempts) {
-            console.warn('⚠️ Akce překročila max attempts, odstraňuji:', action.id);
-            await removeAction(action.id);
-            continue;
+            console.warn('⚠️ Akce překročila max attempts - PONECHÁVÁM ve frontě pro budoucí retry');
+            console.log('📊 Akce:', {
+              id: action.id,
+              action: action.action,
+              employeeID: action.employeeID,
+              attempts: `${action.attempts}/${action.maxAttempts}`,
+              timestamp: new Date(action.timestamp).toLocaleString('cs-CZ')
+            });
+            continue; // ← Skipnout, NEMAZAT
           }
           
           // Připrav data pro logování
@@ -436,7 +454,17 @@ export const useAppStore = create<AppStore>()(
           
           if (action.action === 'stop' && !effectiveAttendanceID && currentAttendanceID) {
             effectiveAttendanceID = currentAttendanceID;
-            console.log(`🔗 STOP akce používá attendanceID z předchozí START v této sekvenci: ${currentAttendanceID}`);
+            console.warn(`🔗 DEPENDENCY TRACKING AKTIVOVÁN: STOP bez ID používá attendanceID z předchozí START`);
+            console.log(`📎 Propojení: START(${currentAttendanceID}) → STOP`);
+          } else if (action.action === 'stop' && !effectiveAttendanceID && !currentAttendanceID) {
+            console.error(`🚨 KRITICKÉ: STOP akce bez attendanceID a bez předchozí START v sekvenci!`);
+            console.error(`📊 Debug info:`, {
+              actionID: action.id,
+              employeeID: action.employeeID,
+              originalAttendanceID: action.attendanceID,
+              attendanceStart: action.attendanceStart,
+              currentAttendanceID
+            });
           }
           
           try {
@@ -449,10 +477,7 @@ export const useAppStore = create<AppStore>()(
               willCreateNew: action.action === 'start' || (!effectiveAttendanceID)
             });
             
-            // Zvýšit počet pokusů PŘED voláním API
-            await updateActionAttempts(action.id, action.attempts + 1);
-            
-            // Volej API se správnou logikou CREATE/UPDATE
+            // ✅ NOVÁ LOGIKA: Volej API PŘED incrementem attempts
             const { apiService } = await import('../services/api');
             const result = await apiService.logAttendanceAction({
               employeeID: action.employeeID,
@@ -467,7 +492,7 @@ export const useAppStore = create<AppStore>()(
               attendanceID: result.attendanceID 
             });
             
-            // Úspěch - odstranit z fronty
+            // ✅ Úspěch - odstranit z fronty (attempts se NEINCREMENTUJE při úspěchu)
             await removeAction(action.id);
             
             // DEPENDENCY TRACKING: Uložit attendanceID pro následující STOP akce
@@ -497,40 +522,70 @@ export const useAppStore = create<AppStore>()(
           } catch (error) {
             console.error(`❌ Chyba při zpracování ${actionText} - ${employeeName}:`, error);
             
-            // Detekce síťové chyby
+            // ✅ NOVÁ LOGIKA: Increment attempts AŽ při chybě (ne před API callem)
+            await updateActionAttempts(action.id, action.attempts + 1);
+            console.log(`🔢 Attempts zvýšeno: ${action.attempts + 1}/${action.maxAttempts}`);
+            
+            // ✅ ROZŠÍŘENÁ detekce síťové chyby
             const isNetworkError = error instanceof Error && (
               error.message.includes('Failed to fetch') ||
               error.message.includes('Network') ||
               error.message.includes('ERR_INTERNET_DISCONNECTED') ||
-              error.message.includes('ERR_NETWORK_CHANGED')
+              error.message.includes('ERR_NETWORK_CHANGED') ||
+              error.message.includes('timeout') ||
+              error.message.includes('Timeout') ||
+              error.message.includes('ECONNREFUSED') ||
+              error.message.includes('ENOTFOUND')
             );
+            
+            // ✅ Detekce server error (502, 503, 504) - také retry!
+            const isServerError = error instanceof Error && 
+              error.message.match(/\b(502|503|504)\b/);
+            
+            const shouldRetry = isNetworkError || isServerError;
             
             if (isNetworkError) {
               console.warn('📵 Detekována síťová chyba - přerušuji zpracování fronty');
               set({ isOnline: false }); // Aktualizuj online stav
               
-              // Uvolnir processing lock při síťové chybě
-              useActionQueueStore.setState({ isProcessing: false });
+              // Uvolnit processing lock při síťové chybě
+              useActionQueueStore.setState({ 
+                isProcessing: false,
+                processingStartTime: undefined
+              });
               return; // Ukončit celé zpracování pro všechny zaměstnance
+            }
+            
+            if (isServerError) {
+              console.warn('🔧 Detekována chyba serveru (502/503/504) - akce zůstává ve frontě pro retry');
+            }
+            
+            if (!shouldRetry) {
+              console.error('🚫 Neopravitelná chyba (špatná data?) - akce zůstává ve frontě ale možná vyžaduje manuální zásah');
             }
             
             // Akce zůstává ve frontě pro další pokus
             // attempts už bylo zvýšeno výše
             
-            // Pokud překročila max attempts, odstraň ji
+            // ✅ NOVÁ LOGIKA: Pokud překročila max attempts, PONECHAT ve frontě
             if (action.attempts >= action.maxAttempts) {
-              console.warn('⚠️ Akce překročila max attempts po chybě, odstraňuji:', action.id);
-              await removeAction(action.id);
+              console.warn('⚠️ Akce překročila max attempts po chybě - PONECHÁVÁM ve frontě');
+              console.log('💾 Akce čeká na budoucí retry nebo manuální zásah admina');
+              // NEMAZAT - akce zůstává ve frontě!
             }
           }
         } // konec for (actions for this employee)
       } // konec for (all employees)
       
       const remainingActions = useActionQueueStore.getState().queue.length;
-      console.log(`✅ Zpracování action queue dokončeno. Zbývá ${remainingActions} akcí.`);
+      const processingDuration = Date.now() - now;
+      console.log(`✅ Zpracování action queue dokončeno. Zbývá ${remainingActions} akcí. Trvalo: ${(processingDuration / 1000).toFixed(1)}s`);
       
       // Uvolnit processing lock
-      useActionQueueStore.setState({ isProcessing: false });
+      useActionQueueStore.setState({ 
+        isProcessing: false,
+        processingStartTime: undefined
+      });
     },
 
     // FULL sync s API - aktualizuje všechna data
@@ -666,41 +721,59 @@ export const useAppStore = create<AppStore>()(
         return;
       }
       
+      // 🔒 RACE CONDITION PROTECTION: Kontrola duplicity START
+      const actionKey = `${employeeID}-start`;
+      if (get().pendingActions.has(actionKey)) {
+        console.warn('⚠️ START akce už probíhá pro:', localState.fullName);
+        return;
+      }
+      
+      // Označ START jako probíhající
+      const newPendingSet = new Set(get().pendingActions);
+      newPendingSet.add(actionKey);
+      set({ pendingActions: newPendingSet });
+      
       const startTimestamp = new Date().toISOString();
       
       console.log('🟢 LOCAL-FIRST START pro:', localState.fullName);
       
-      // NEJDŘÍV: Okamžitá lokální aktualizace (0ms)
-      await get().updateEmployeeStateLocal(employeeID, {
-                isAtWork: true, 
-        lastLocalAction: 'start',
-        attendanceStart: startTimestamp,
-        attendanceID: undefined // Bude doplněno po API response
-      });
-      
-      // Aktualizuj UI pokud je tento zaměstnanec vybraný
-      const currentSelected = get().selectedEmployee;
-      if (currentSelected?.employeeID === employeeID) {
-        const updatedEmployee = get().getEmployeeWithState(employeeID);
-        if (updatedEmployee) {
-          set({ selectedEmployee: updatedEmployee });
-        }
-      }
-      
-      // POTOM: Na pozadí queue + API (neblokující)
       try {
+        // NEJDŘÍV: Okamžitá lokální aktualizace (0ms)
+        await get().updateEmployeeStateLocal(employeeID, {
+          isAtWork: true, 
+          lastLocalAction: 'start',
+          attendanceStart: startTimestamp,
+          attendanceID: undefined // Bude doplněno po API response
+        });
+        
+        // Aktualizuj UI pokud je tento zaměstnanec vybraný
+        const currentSelected = get().selectedEmployee;
+        if (currentSelected?.employeeID === employeeID) {
+          const updatedEmployee = get().getEmployeeWithState(employeeID);
+          if (updatedEmployee) {
+            set({ selectedEmployee: updatedEmployee });
+          }
+        }
+        
+        // POTOM: Na pozadí queue + API (neblokující)
         await useActionQueueStore.getState().addAction({
-        employeeID,
-        action: 'start',
+          employeeID,
+          action: 'start',
           timestamp: startTimestamp,
-        maxAttempts: 3
-      });
-      
-        // Action queue se zpracuje automaticky v useAppSync useEffect
+          maxAttempts: 10 // ⬆️ Zvýšeno z 3 na 10 pro lepší resilience
+        });
+        
+        console.log('✅ START akce úspěšně přidána do fronty');
         
       } catch (error) {
-        console.error('❌ Chyba při START action queue:', error);
-        // Lokální aktualizace proběhla - to je hlavní
+        console.error('❌ Chyba při START akci:', error);
+        // Lokální aktualizace může proběhnout i při chybě fronty
+      } finally {
+        // 🔒 Vždy odebrat z pending actions
+        const cleanupSet = new Set(get().pendingActions);
+        cleanupSet.delete(actionKey);
+        set({ pendingActions: cleanupSet });
+        console.log('🔓 START pending lock uvolněn pro:', localState.fullName);
       }
     },
     
@@ -718,6 +791,53 @@ export const useAppStore = create<AppStore>()(
         return;
       }
       
+      // 🔒 INFO: Kontrola čekající START akce (pouze logování, neblokuje)
+      const startActionKey = `${employeeID}-start`;
+      if (get().pendingActions.has(startActionKey)) {
+        console.warn('⚠️ START akce je právě přidávána do fronty - může dojít k race condition');
+      }
+      
+      // 🔒 INFO: Kontrola fronty (pouze logování, neblokuje)
+      const queue = useActionQueueStore.getState().queue;
+      const hasPendingStart = queue.some(
+        action => action.employeeID === employeeID && action.action === 'start'
+      );
+      
+      if (hasPendingStart) {
+        console.warn('⚠️ START akce čeká ve frontě - dependency tracking to vyřeší při zpracování');
+        console.log('📋 Aktuální fronta:', queue.filter(a => a.employeeID === employeeID));
+      }
+      
+      // 🔒 KONTROLA: Má zaměstnanec attendanceID?
+      if (!localState.attendanceID) {
+        console.warn('⚠️ Zaměstnanec nemá attendanceID - bude použit dependency tracking nebo offline CREATE');
+        console.log('📊 Stav zaměstnance:', {
+          fullName: localState.fullName,
+          isAtWork: localState.isAtWork,
+          attendanceID: localState.attendanceID,
+          attendanceStart: localState.attendanceStart
+        });
+        
+        // Pokud má attendanceStart, můžeme pokračovat (offline CREATE fallback)
+        if (localState.attendanceStart) {
+          console.log('✅ Použiji offline CREATE fallback s attendanceStart:', localState.attendanceStart);
+        } else {
+          console.warn('⚠️ Nemám ani attendanceStart - spoléhám na dependency tracking');
+        }
+      }
+      
+      // 🔒 Kontrola duplicity STOP
+      const stopActionKey = `${employeeID}-stop`;
+      if (get().pendingActions.has(stopActionKey)) {
+        console.warn('⚠️ STOP akce už probíhá pro:', localState.fullName);
+        return;
+      }
+      
+      // Označ STOP jako probíhající
+      const newPendingSet = new Set(get().pendingActions);
+      newPendingSet.add(stopActionKey);
+      set({ pendingActions: newPendingSet });
+      
       const stopTimestamp = new Date().toISOString();
       
       // KLÍČOVÉ: Uložit attendanceID a attendanceStart PŘED resetováním
@@ -730,35 +850,47 @@ export const useAppStore = create<AppStore>()(
         attendanceStart: savedAttendanceStart
       });
       
-      // NEJDŘÍV: Přidat do queue S PŮVODNÍMI HODNOTAMI
-      await useActionQueueStore.getState().addAction({
-        employeeID,
-        action: 'stop',
-        timestamp: stopTimestamp,
-        maxAttempts: 3,
-        attendanceID: savedAttendanceID, // POUŽÍVÁME ULOŽENÉ HODNOTY
-        attendanceStart: savedAttendanceStart,
-        activityID: activityID
-      });
-      
-      // POTOM: Lokální aktualizace (resetování)
-      await get().updateEmployeeStateLocal(employeeID, {
-        isAtWork: false, 
-        lastLocalAction: 'stop',
-        attendanceStart: undefined, // Resetovat pro příští START
-        attendanceID: undefined // Resetovat
-      });
-      
-      // Aktualizuj UI pokud je tento zaměstnanec vybraný
-      const currentSelected = get().selectedEmployee;
-      if (currentSelected?.employeeID === employeeID) {
-        const updatedEmployee = get().getEmployeeWithState(employeeID);
-        if (updatedEmployee) {
-          set({ selectedEmployee: updatedEmployee });
+      try {
+        // NEJDŘÍV: Přidat do queue S PŮVODNÍMI HODNOTAMI
+        await useActionQueueStore.getState().addAction({
+          employeeID,
+          action: 'stop',
+          timestamp: stopTimestamp,
+          maxAttempts: 10, // ⬆️ Zvýšeno z 3 na 10 pro lepší resilience
+          attendanceID: savedAttendanceID, // POUŽÍVÁME ULOŽENÉ HODNOTY
+          attendanceStart: savedAttendanceStart,
+          activityID: activityID
+        });
+        
+        // POTOM: Lokální aktualizace (resetování)
+        await get().updateEmployeeStateLocal(employeeID, {
+          isAtWork: false, 
+          lastLocalAction: 'stop',
+          attendanceStart: savedAttendanceStart, // ✅ ZACHOVAT pro možný fallback/retry
+          attendanceID: undefined // Resetovat (už není aktivní)
+        });
+        
+        // Aktualizuj UI pokud je tento zaměstnanec vybraný
+        const currentSelected = get().selectedEmployee;
+        if (currentSelected?.employeeID === employeeID) {
+          const updatedEmployee = get().getEmployeeWithState(employeeID);
+          if (updatedEmployee) {
+            set({ selectedEmployee: updatedEmployee });
+          }
         }
+        
+        console.log('✅ STOP akce dokončena - data odeslána do fronty');
+        
+      } catch (error) {
+        console.error('❌ Chyba při STOP akci:', error);
+        throw error; // Re-throw aby UI vidělo chybu
+      } finally {
+        // 🔒 Vždy odebrat z pending actions
+        const cleanupSet = new Set(get().pendingActions);
+        cleanupSet.delete(stopActionKey);
+        set({ pendingActions: cleanupSet });
+        console.log('🔓 STOP pending lock uvolněn pro:', localState.fullName);
       }
-      
-      console.log('✅ STOP akce dokončena - data odeslána do fronty');
     },
   }))
 );
@@ -768,7 +900,8 @@ export const useActionQueueStore = create<ActionQueueStore>()(
   subscribeWithSelector((set, get) => ({
   queue: [],
   isLoaded: false,
-  isProcessing: false, // NOVÁ property - processing lock
+  isProcessing: false, // Processing lock
+  processingStartTime: undefined, // Timestamp pro timeout detection
   
     addAction: async (action: Omit<QueuedAction, 'id' | 'attempts'>) => {
     const newAction: QueuedAction = {
@@ -845,7 +978,11 @@ export const useActionQueueStore = create<ActionQueueStore>()(
         }
         
         // Vyčistit lokální stav a processing lock
-        set({ queue: [], isProcessing: false });
+        set({ 
+          queue: [], 
+          isProcessing: false,
+          processingStartTime: undefined
+        });
         
         console.log('🗑️ Fronta vyčištěna');
       } catch (error) {
