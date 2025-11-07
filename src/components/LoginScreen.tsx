@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Lock, Eye, EyeOff, Shield } from 'lucide-react';
+import { Eye, EyeOff, Shield } from 'lucide-react';
 import { authService } from '../services/auth';
 import { authConfig } from '../services/config';
+import { NumericKeypad } from './ui/NumericKeypad';
 
 interface LoginScreenProps {
   onAuthSuccess: () => void;
@@ -13,8 +14,19 @@ export function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleNumberClick = (num: string) => {
+    if (pin.length < 10) { // Max 10 číslic
+      setPin(pin + num);
+    }
+  };
+
+  const handleBackspace = () => {
+    setPin(pin.slice(0, -1));
+  };
+
+  const handleSubmit = async () => {
+    if (pin.length === 0) return;
+    
     setIsLoading(true);
     setError(null);
 
@@ -25,9 +37,12 @@ export function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
         onAuthSuccess();
       } else {
         setError(result.error || 'Chyba při přihlašování');
+        // Vyčisti PIN při chybě
+        setPin('');
       }
     } catch (error) {
       setError('Systémová chyba při přihlašování');
+      setPin('');
     } finally {
       setIsLoading(false);
     }
@@ -44,86 +59,69 @@ export function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
         <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-400/4 rounded-full blur-3xl"></div>
       </div>
 
-      {/* Login Card */}
+      {/* Login Card - optimalizovaný pro tablet landscape */}
       <div className="relative z-10 w-full max-w-md">
-        <div className="glass-card p-8 text-center">
+        <div className="glass-card p-4 text-center">
           
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex justify-center mb-6">
-              <div className="p-6 bg-blue-500/10 rounded-2xl border border-blue-400/20">
-                <Shield className="w-16 h-16 text-blue-400" />
-              </div>
-            </div>
-            <h1 className="text-3xl font-bold text-slate-100 mb-3">
+          {/* Header - minimalistický */}
+          <div className="mb-3">
+            <h1 className="text-xl font-bold text-slate-100 mb-1">
               {authConfig.appName}
             </h1>
-            <p className="text-slate-300 text-lg">
-              Přihlášení do systému
+            <p className="text-slate-400 text-sm">
+              Přihlášení
             </p>
           </div>
 
-          {/* Login Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                PIN kód
-              </label>
-              <div className="relative">
-                <input
-                  type={showPin ? 'text' : 'password'}
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
-                  placeholder="Zadejte PIN"
-                  className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600/50 rounded-lg text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  disabled={isLoading}
-                  autoFocus
-                  inputMode="numeric"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPin(!showPin)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300"
-                  disabled={isLoading}
-                >
-                  {showPin ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
+          {/* PIN Display & Keypad - kompaktní */}
+          <div className="space-y-3">
+            {/* PIN Display */}
+            <div className="relative">
+              <div className="w-full px-3 py-2 bg-slate-800/50 border-2 border-slate-600/50 rounded-lg text-center min-h-[45px] flex items-center justify-center">
+                <div className="text-xl font-bold tracking-widest select-none">
+                  {pin.length === 0 ? (
+                    <span className="text-slate-500 text-base">Zadejte PIN</span>
+                  ) : showPin ? (
+                    <span className="text-slate-100">{pin}</span>
+                  ) : (
+                    <span className="text-slate-100">{'•'.repeat(pin.length)}</span>
+                  )}
+                </div>
               </div>
+              
+              {/* Show/Hide toggle */}
+              <button
+                type="button"
+                onClick={() => setShowPin(!showPin)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors p-1"
+                disabled={isLoading}
+                aria-label={showPin ? 'Skrýt PIN' : 'Zobrazit PIN'}
+              >
+                {showPin ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
             </div>
 
             {/* Error Message */}
             {error && (
-              <div className="p-3 bg-red-500/10 border border-red-400/20 rounded-lg">
-                <p className="text-red-400 text-sm">{error}</p>
+              <div className="p-2 bg-red-500/10 border border-red-400/20 rounded-lg">
+                <p className="text-red-400 text-xs">{error}</p>
               </div>
             )}
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading || !pin}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:text-slate-500 text-white font-medium rounded-lg transition-colors flex items-center justify-center space-x-2"
-            >
-              {isLoading ? (
-                <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                <>
-                  <Lock className="w-5 h-5" />
-                  <span>Přihlásit se</span>
-                </>
-              )}
-            </button>
-          </form>
+            {/* Virtuální numerická klávesnice */}
+            <NumericKeypad
+              onNumberClick={handleNumberClick}
+              onBackspace={handleBackspace}
+              onSubmit={handleSubmit}
+              disabled={isLoading}
+            />
 
-          {/* Security Info */}
-          <div className="mt-8 pt-6 border-t border-slate-600/30">
-            <p className="text-xs text-slate-400">
-              Zabezpečený přístup k docházkovému systému
-            </p>
-            {import.meta.env.DEV && (
-              <p className="text-xs text-slate-500 mt-1">
-                🔧 Vývojový režim aktivní
-              </p>
+            {/* Loading indicator */}
+            {isLoading && (
+              <div className="flex items-center justify-center space-x-2 mt-2 text-blue-400">
+                <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-xs">Ověřuji...</span>
+              </div>
             )}
           </div>
         </div>

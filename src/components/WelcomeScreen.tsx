@@ -61,38 +61,75 @@ export function WelcomeScreen() {
   };
 
   const handleUpdateData = async () => {
-    if (confirm('Provést aktualizaci dat ze serveru?\n\n🔄 AKTUALIZUJE:\n• Seznam zaměstnanců\n• Seznam aktivit\n• Jména a nastavení\n\n✅ ZACHOVÁ:\n• Pracovní stavy (kdo je v práci)\n• Čekající akce\n• Všechny docházkové údaje')) {
+    if (confirm('Provést kompletní aktualizaci aplikace?\n\n🔄 AKTUALIZUJE:\n• Seznam zaměstnanců a aktivit (data)\n• Novou verzi aplikace (kód)\n• Vyčistí starou cache\n\n✅ ZACHOVÁ:\n• Pracovní stavy (kdo je v práci)\n• Čekající akce ve frontě\n• Vaši přihlášenou session\n\n⚠️ Aplikace se refreshne!')) {
       try {
         const { useAppStore } = await import('../store');
         
-        console.log('🔄 Spouštím aktualizaci metadat ze serveru...');
+        console.log('🔄 Spouštím KOMPLETNÍ aktualizaci (data + kód)...');
         
-        // Debug info před sync
+        // 1. AKTUALIZACE DAT ze serveru
+        console.log('📊 Krok 1/3: Aktualizace dat ze serveru...');
         const beforeSync = useAppStore.getState().localEmployees;
-        console.log('📊 PŘED sync:', { 
-          totalEmployees: beforeSync.size,
-          atWork: Array.from(beforeSync.values()).filter(e => e.isAtWork).length
-        });
-        
-        // Zavolej syncWithAPI pro načtení fresh dat z API
         await useAppStore.getState().syncWithAPI();
-        
-        // Debug info po sync
         const afterSync = useAppStore.getState().localEmployees;
-        console.log('📊 PO sync:', { 
+        
+        console.log('✅ Data aktualizována:', {
           totalEmployees: afterSync.size,
-          atWork: Array.from(afterSync.values()).filter(e => e.isAtWork).length,
-          newEmployees: afterSync.size - beforeSync.size
+          atWork: Array.from(afterSync.values()).filter(e => e.isAtWork).length
         });
         
-        console.log('✅ Metadata aktualizována ze serveru - docházkové stavy zachovány');
+        // 2. SERVICE WORKER UPDATE
+        console.log('🔄 Krok 2/3: Kontrola nové verze aplikace...');
         
-        // Krátká notifikace o úspěchu
-        alert(`✅ Aktualizace dokončena!\n\nZaměstnanci: ${afterSync.size}\nV práci: ${Array.from(afterSync.values()).filter(e => e.isAtWork).length}`);
+        if ('serviceWorker' in navigator) {
+          const registration = await navigator.serviceWorker.ready;
+          
+          // Force check pro nový SW
+          await registration.update();
+          
+          // Pokud čeká nový SW
+          if (registration.waiting) {
+            console.log('🆕 Nalezen nový Service Worker - aktivuji...');
+            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+            
+            // Počkej na převzetí kontroly
+            await new Promise<void>((resolve) => {
+              navigator.serviceWorker.addEventListener('controllerchange', () => {
+                console.log('✅ Nový Service Worker aktivován');
+                resolve();
+              }, { once: true });
+            });
+          } else {
+            console.log('ℹ️ Žádná nová verze Service Workera');
+          }
+        }
+        
+        // 3. CACHE CLEAR (jen static assets, ne IndexedDB!)
+        console.log('🧹 Krok 3/3: Čištění staré cache...');
+        
+        if ('caches' in window) {
+          const cacheNames = await caches.keys();
+          console.log('📦 Nalezené cache:', cacheNames);
+          
+          // Smaž jen static-assets cache (ne api-cache, ne images)
+          for (const cacheName of cacheNames) {
+            if (cacheName.includes('static-assets') || cacheName.includes('workbox-precache')) {
+              await caches.delete(cacheName);
+              console.log(`🗑️ Smazána cache: ${cacheName}`);
+            }
+          }
+        }
+        
+        console.log('✅ Kompletní aktualizace dokončena - refreshuji stránku...');
+        
+        // 4. RELOAD (s malým delay pro dokončení operací)
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
         
       } catch (error) {
-        console.error('❌ Chyba při aktualizaci dat:', error);
-        alert('❌ Chyba při aktualizaci dat. Zkuste to znovu.');
+        console.error('❌ Chyba při aktualizaci:', error);
+        alert('❌ Chyba při aktualizaci. Zkuste refreshnout stránku (Ctrl+R).');
       }
     }
   };

@@ -7,11 +7,13 @@ import { ConfirmationScreen } from './components/ConfirmationScreen';
 import { ErrorScreen } from './components/ErrorScreen';
 import { LoadingScreen } from './components/LoadingScreen';
 import { OfflineIndicator } from './components/OfflineIndicator';
+import { UpdatePrompt } from './components/UpdatePrompt';
 import { CategorySelectorScreen } from './components/CategorySelectorScreen';
 import { SubCategorySelectorScreen } from './components/SubCategorySelectorScreen';
 import { ActivitySelectorScreen } from './components/ActivitySelectorScreen';
 import { useAppSync } from './hooks/useAppSync';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
+import { useVersionCheck } from './hooks/useVersionCheck';
 
 function AppContent() {
   const {
@@ -23,6 +25,7 @@ function AppContent() {
   // Inicializace synchronizace a sledování síťového stavu
   useAppSync();
   useNetworkStatus();
+  useVersionCheck(); // Automatická detekce staré verze
 
   // Debug informace v development
   useEffect(() => {
@@ -67,8 +70,8 @@ function AppContent() {
       {/* Offline indikátor - vždy viditelný v rohu */}
       <OfflineIndicator />
 
-      {/* PWA Install Prompt - bude implementován později */}
-      {/* <InstallPrompt /> */}
+      {/* PWA Update Prompt - banner pro novou verzi */}
+      <UpdatePrompt />
     </div>
   );
 }

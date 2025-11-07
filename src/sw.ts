@@ -17,11 +17,17 @@ interface SwConfig {
 
 let swConfig: SwConfig | null = null;
 
-// Listen for config from main app
+// Listen for messages from main app
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SW_CONFIG') {
     swConfig = event.data.config;
     console.log('🔒 SW: Config received from main app');
+  }
+  
+  // Handle SKIP_WAITING message (pro okamžitou aktivaci nového SW)
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('⚡ SW: SKIP_WAITING received - aktivuji nový Service Worker');
+    self.skipWaiting();
   }
 });
 
