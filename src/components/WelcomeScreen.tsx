@@ -61,11 +61,18 @@ export function WelcomeScreen() {
   };
 
   const handleUpdateData = async () => {
-    if (confirm('Provést kompletní aktualizaci aplikace?\n\n🔄 AKTUALIZUJE:\n• Seznam zaměstnanců a aktivit (data)\n• Novou verzi aplikace (kód)\n• Vyčistí starou cache\n\n✅ ZACHOVÁ:\n• Pracovní stavy (kdo je v práci)\n• Čekající akce ve frontě\n• Vaši přihlášenou session\n\n⚠️ Aplikace se refreshne!')) {
+    console.log('🎯 handleUpdateData CALLED - tlačítko bylo kliknuto!');
+    
+    const userConfirmed = confirm('Provést kompletní aktualizaci aplikace?\n\n🔄 AKTUALIZUJE:\n• Seznam zaměstnanců a aktivit (data)\n• Novou verzi aplikace (kód)\n• Vyčistí starou cache\n\n✅ ZACHOVÁ:\n• Pracovní stavy (kdo je v práci)\n• Čekající akce ve frontě\n• Vaši přihlášenou session\n\n⚠️ Aplikace se refreshne!');
+    
+    console.log('📋 Uživatel potvrdil dialog:', userConfirmed);
+    
+    if (userConfirmed) {
       try {
         const { useAppStore } = await import('../store');
         
         console.log('🔄 Spouštím KOMPLETNÍ aktualizaci (data + kód)...');
+        console.log('📍 Krok 0: Import store dokončen');
         
         // 1. AKTUALIZACE DAT ze serveru
         console.log('📊 Krok 1/3: Aktualizace dat ze serveru...');
@@ -80,28 +87,46 @@ export function WelcomeScreen() {
         
         // 2. SERVICE WORKER UPDATE
         console.log('🔄 Krok 2/3: Kontrola nové verze aplikace...');
+        console.log('🔍 Service Worker support:', 'serviceWorker' in navigator);
+        console.log('🔍 Environment:', import.meta.env.PROD ? 'PRODUCTION' : 'DEVELOPMENT');
         
         if ('serviceWorker' in navigator) {
-          const registration = await navigator.serviceWorker.ready;
-          
-          // Force check pro nový SW
-          await registration.update();
-          
-          // Pokud čeká nový SW
-          if (registration.waiting) {
-            console.log('🆕 Nalezen nový Service Worker - aktivuji...');
-            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+          try {
+            const registration = await navigator.serviceWorker.ready;
+            console.log('✅ Service Worker ready:', registration);
             
-            // Počkej na převzetí kontroly
-            await new Promise<void>((resolve) => {
-              navigator.serviceWorker.addEventListener('controllerchange', () => {
-                console.log('✅ Nový Service Worker aktivován');
-                resolve();
-              }, { once: true });
-            });
-          } else {
-            console.log('ℹ️ Žádná nová verze Service Workera');
+            // Force check pro nový SW
+            console.log('🔄 Volám registration.update()...');
+            await registration.update();
+            console.log('✅ Update check dokončen');
+            
+            // Pokud čeká nový SW
+            if (registration.waiting) {
+              console.log('🆕 Nalezen nový Service Worker - aktivuji...');
+              registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+              
+              // Počkej na převzetí kontroly (max 5 sekund)
+              await Promise.race([
+                new Promise<void>((resolve) => {
+                  navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    console.log('✅ Nový Service Worker aktivován');
+                    resolve();
+                  }, { once: true });
+                }),
+                new Promise<void>((resolve) => setTimeout(() => {
+                  console.log('⏱️ Timeout - pokračuji bez čekání na controllerchange');
+                  resolve();
+                }, 5000))
+              ]);
+            } else {
+              console.log('ℹ️ Žádná nová verze Service Workera (registration.waiting = null)');
+            }
+          } catch (swError) {
+            console.error('❌ Chyba při Service Worker update:', swError);
+            console.log('⚠️ Pokračuji bez SW update...');
           }
+        } else {
+          console.log('⚠️ Service Worker není podporován nebo není v PRODUCTION módu');
         }
         
         // 3. CACHE CLEAR (jen static assets, ne IndexedDB!)
@@ -123,14 +148,19 @@ export function WelcomeScreen() {
         console.log('✅ Kompletní aktualizace dokončena - refreshuji stránku...');
         
         // 4. RELOAD (s malým delay pro dokončení operací)
+        console.log('🔄 Spouštím reload za 500ms...');
         setTimeout(() => {
+          console.log('🔄 RELOAD TEĎKA!');
           window.location.reload();
         }, 500);
         
       } catch (error) {
-        console.error('❌ Chyba při aktualizaci:', error);
-        alert('❌ Chyba při aktualizaci. Zkuste refreshnout stránku (Ctrl+R).');
+        console.error('❌ KRITICKÁ CHYBA při aktualizaci:', error);
+        console.error('Stack trace:', error);
+        alert(`❌ Chyba při aktualizaci:\n\n${error instanceof Error ? error.message : 'Neznámá chyba'}\n\nZkuste refreshnout stránku (Ctrl+R).`);
       }
+    } else {
+      console.log('❌ Uživatel zrušil aktualizaci');
     }
   };
 
