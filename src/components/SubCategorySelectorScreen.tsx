@@ -158,12 +158,12 @@ export function SubCategorySelectorScreen() {
                 
                 {/* Název subkategorie */}
                 <div className="text-center min-w-0 w-full">
-                  <p className="text-lg font-semibold text-slate-100 leading-tight mb-1">
+                  <p className="text-xl font-semibold text-slate-100 leading-tight mb-1">
                     {subCategory}
                   </p>
                   
                   {/* Počet aktivit v subkategorii */}
-                  <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-slate-600/20 text-slate-400 text-sm">
+                  <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-slate-600/20 text-slate-400 text-base">
                     {activitiesInSubCategory} {activitiesInSubCategory === 1 ? 'činnost' : 'činností'}
                   </div>
                 </div>
