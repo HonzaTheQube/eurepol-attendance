@@ -153,7 +153,7 @@ export function ManualSelector({ onClose }: ManualSelectorProps) {
                 {/* Jméno zaměstnance - vždy na stejné pozici */}
                 <div className="text-center min-w-0 w-full">
                   <p className={`font-semibold text-slate-100 truncate leading-tight ${
-                    rows <= 3 ? 'text-xl' : rows <= 4 ? 'text-lg' : 'text-base'
+                    rows <= 3 ? 'text-2xl' : rows <= 4 ? 'text-xl' : 'text-lg'
                   }`}>
                     {employee.fullName || 'Bez jména'}
                   </p>

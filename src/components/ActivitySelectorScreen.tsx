@@ -182,7 +182,7 @@ export function ActivitySelectorScreen() {
             >
               {/* Název aktivity - pouze text */}
               <p className={`font-semibold text-slate-100 text-center leading-tight ${
-                rows <= 3 ? 'text-xl' : rows <= 4 ? 'text-lg' : 'text-base'
+                rows <= 3 ? 'text-2xl' : rows <= 4 ? 'text-xl' : 'text-lg'
               }`} 
                  style={{ 
                    display: '-webkit-box',

@@ -73,7 +73,7 @@ export function UpdatePrompt() {
   if (!showPrompt) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 animate-in slide-in-from-bottom-4 duration-500">
+    <div className="fixed bottom-4 left-4 right-4 z-[60] animate-in slide-in-from-bottom-4 duration-500">
       <div className="glass-card p-4 max-w-md mx-auto">
         <div className="flex items-start gap-3">
           {/* Ikona */}
