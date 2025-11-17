@@ -251,9 +251,27 @@ export const useAppStore = create<AppStore>()(
     getEmployeeByTagID: (tagID: string) => {
       const allEmployees = get().localEmployees;
       
+      console.log('🔍 Hledám zaměstnance s tagID:', {
+        searchTag: tagID,
+        searchTagLength: tagID.length,
+        searchTagType: typeof tagID,
+        totalEmployees: allEmployees.size
+      });
+      
+      // DEBUG: Zobraz všechny tagID v databázi
+      if (import.meta.env.DEV) {
+        console.log('📋 Všechna tagID v databázi:');
+        Array.from(allEmployees.values()).forEach(e => {
+          console.log(`  "${e.tagID}" (${e.tagID.length}) - ${e.fullName}`);
+        });
+      }
+      
       // Hledej zaměstnance podle tagID
       for (const [employeeID, localState] of allEmployees) {
+        console.log(`🔎 Porovnávám: "${tagID}" === "${localState.tagID}" (${localState.fullName})`);
+        
         if (localState.tagID === tagID) {
+          console.log('✅ SHODA NALEZENA!', localState.fullName);
           return {
             employeeID: localState.employeeID,
             fullName: localState.fullName,
@@ -270,6 +288,7 @@ export const useAppStore = create<AppStore>()(
       }
       
       console.warn('⚠️ Zaměstnanec s tagID nenalezen:', tagID);
+      console.warn('💡 Zkontrolujte že tagID v databázi přesně odpovídá scanovanému čipu');
       return null; // TagID nenalezeno
     },
     
