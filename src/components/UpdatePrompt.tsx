@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Download, X } from 'lucide-react';
+import { updateApp } from '../utils/updateApp';
 
 export function UpdatePrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
-  const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
 
   useEffect(() => {
     // Pouze v production (kde je SW aktivní)
@@ -19,7 +19,6 @@ export function UpdatePrompt() {
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                   console.log('🆕 Nová verze aplikace k dispozici!');
-                  setRegistration(reg);
                   setShowPrompt(true);
                 }
               });
@@ -29,7 +28,6 @@ export function UpdatePrompt() {
           // Pokud už čeká nový SW
           if (reg.waiting) {
             console.log('🆕 Nová verze aplikace už čeká!');
-            setRegistration(reg);
             setShowPrompt(true);
           }
         });
@@ -52,17 +50,14 @@ export function UpdatePrompt() {
     return () => clearInterval(intervalId);
   }, []);
 
-  const handleUpdate = () => {
-    if (registration && registration.waiting) {
-      // Pošli zprávu novému SW aby převzal kontrolu
-      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-      
-      // Počkej na controllerchange a pak reload
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        console.log('🔄 Nový Service Worker převzal kontrolu - refreshuji stránku...');
-        window.location.reload();
-      });
-    }
+  const handleUpdate = async () => {
+    console.log('🎯 UpdatePrompt: Uživatel klikl na Aktualizovat');
+    
+    // Zavři banner
+    setShowPrompt(false);
+    
+    // Zavolej sdílenou update funkci
+    await updateApp();
   };
 
   const handleDismiss = () => {

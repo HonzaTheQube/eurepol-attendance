@@ -3,6 +3,7 @@ import { Clock, Users, CreditCard, LogOut, Settings, RefreshCw } from 'lucide-re
 import { NFCListener } from './IdentificationMethods/NFCListener';
 import { ManualSelector } from './IdentificationMethods/ManualSelector';
 import { authService } from '../services/auth';
+import { updateApp } from '../utils/updateApp';
 
 export function WelcomeScreen() {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -61,104 +62,18 @@ export function WelcomeScreen() {
   };
 
   const handleUpdateData = async () => {
-    console.log('🎯 handleUpdateData CALLED - tlačítko bylo kliknuto!');
+    console.log('🎯 WelcomeScreen: Tlačítko Aktualizace kliknuto');
     
-    const userConfirmed = confirm('Provést kompletní aktualizaci aplikace?\n\n🔄 AKTUALIZUJE:\n• Seznam zaměstnanců a aktivit (data)\n• Novou verzi aplikace (kód)\n• Vyčistí starou cache\n\n✅ ZACHOVÁ:\n• Pracovní stavy (kdo je v práci)\n• Čekající akce ve frontě\n• Vaši přihlášenou session\n\n⚠️ Aplikace se refreshne!');
+    const userConfirmed = confirm('Aktualizovat aplikaci?\n\n✅ Stáhne nová data ze serveru\n✅ Načte novou verzi kódu\n✅ Zachová pracovní stavy a session\n\n⚠️ Stránka se refreshne!');
     
-    console.log('📋 Uživatel potvrdil dialog:', userConfirmed);
+    console.log('📋 Uživatel potvrdil:', userConfirmed);
     
     if (userConfirmed) {
-      try {
-        const { useAppStore } = await import('../store');
-        
-        console.log('🔄 Spouštím KOMPLETNÍ aktualizaci (data + kód)...');
-        console.log('📍 Krok 0: Import store dokončen');
-        
-        // 1. AKTUALIZACE DAT ze serveru
-        console.log('📊 Krok 1/3: Aktualizace dat ze serveru...');
-        const beforeSync = useAppStore.getState().localEmployees;
-        await useAppStore.getState().syncWithAPI();
-        const afterSync = useAppStore.getState().localEmployees;
-        
-        console.log('✅ Data aktualizována:', {
-          totalEmployees: afterSync.size,
-          atWork: Array.from(afterSync.values()).filter(e => e.isAtWork).length
-        });
-        
-        // 2. SERVICE WORKER UPDATE
-        console.log('🔄 Krok 2/3: Kontrola nové verze aplikace...');
-        console.log('🔍 Service Worker support:', 'serviceWorker' in navigator);
-        console.log('🔍 Environment:', import.meta.env.PROD ? 'PRODUCTION' : 'DEVELOPMENT');
-        
-        if ('serviceWorker' in navigator) {
-          try {
-            const registration = await navigator.serviceWorker.ready;
-            console.log('✅ Service Worker ready:', registration);
-            
-            // Force check pro nový SW
-            console.log('🔄 Volám registration.update()...');
-            await registration.update();
-            console.log('✅ Update check dokončen');
-            
-            // Pokud čeká nový SW
-            if (registration.waiting) {
-              console.log('🆕 Nalezen nový Service Worker - aktivuji...');
-              registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-              
-              // Počkej na převzetí kontroly (max 5 sekund)
-              await Promise.race([
-                new Promise<void>((resolve) => {
-                  navigator.serviceWorker.addEventListener('controllerchange', () => {
-                    console.log('✅ Nový Service Worker aktivován');
-                    resolve();
-                  }, { once: true });
-                }),
-                new Promise<void>((resolve) => setTimeout(() => {
-                  console.log('⏱️ Timeout - pokračuji bez čekání na controllerchange');
-                  resolve();
-                }, 5000))
-              ]);
-            } else {
-              console.log('ℹ️ Žádná nová verze Service Workera (registration.waiting = null)');
-            }
-          } catch (swError) {
-            console.error('❌ Chyba při Service Worker update:', swError);
-            console.log('⚠️ Pokračuji bez SW update...');
-          }
-        } else {
-          console.log('⚠️ Service Worker není podporován nebo není v PRODUCTION módu');
-        }
-        
-        // 3. CACHE CLEAR (jen static assets, ne IndexedDB!)
-        console.log('🧹 Krok 3/3: Čištění staré cache...');
-        
-        if ('caches' in window) {
-          const cacheNames = await caches.keys();
-          console.log('📦 Nalezené cache:', cacheNames);
-          
-          // Smaž jen static-assets cache (ne api-cache, ne images)
-          for (const cacheName of cacheNames) {
-            if (cacheName.includes('static-assets') || cacheName.includes('workbox-precache')) {
-              await caches.delete(cacheName);
-              console.log(`🗑️ Smazána cache: ${cacheName}`);
-            }
-          }
-        }
-        
-        console.log('✅ Kompletní aktualizace dokončena - refreshuji stránku...');
-        
-        // 4. RELOAD (s malým delay pro dokončení operací)
-        console.log('🔄 Spouštím reload za 500ms...');
-        setTimeout(() => {
-          console.log('🔄 RELOAD TEĎKA!');
-          window.location.reload();
-        }, 500);
-        
-      } catch (error) {
-        console.error('❌ KRITICKÁ CHYBA při aktualizaci:', error);
-        console.error('Stack trace:', error);
-        alert(`❌ Chyba při aktualizaci:\n\n${error instanceof Error ? error.message : 'Neznámá chyba'}\n\nZkuste refreshnout stránku (Ctrl+R).`);
-      }
+      // Zavři admin menu
+      setShowAdminMenu(false);
+      
+      // Zavolej sdílenou update funkci
+      await updateApp();
     } else {
       console.log('❌ Uživatel zrušil aktualizaci');
     }
